@@ -97,4 +97,23 @@ public class PlayerActivity extends AppCompatActivity {
          }
       });
    }
+
+   @Override
+   protected void onPause() {
+      super.onPause();
+      mediaPlayer.pause();
+   }
+
+   @Override
+   protected void onDestroy() {
+      super.onDestroy();
+      mediaPlayer.stop();
+      mediaPlayer.release();
+   }
+
+   @Override
+   protected void onResume() {
+      super.onResume();
+      mediaPlayer.start();
+   }
 }
