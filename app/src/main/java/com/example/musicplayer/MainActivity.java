@@ -10,19 +10,15 @@ import android.widget.AdapterView;
 import android.widget.BaseAdapter;
 import android.widget.ListView;
 import android.widget.TextView;
-
 import androidx.appcompat.app.AppCompatActivity;
-
 import com.karumi.dexter.Dexter;
 import com.karumi.dexter.PermissionToken;
 import com.karumi.dexter.listener.PermissionDeniedResponse;
 import com.karumi.dexter.listener.PermissionGrantedResponse;
 import com.karumi.dexter.listener.PermissionRequest;
 import com.karumi.dexter.listener.single.PermissionListener;
-
 import java.io.File;
 import java.util.ArrayList;
-import java.util.concurrent.TimeUnit;
 
 
 public class MainActivity extends AppCompatActivity {
@@ -60,6 +56,9 @@ public class MainActivity extends AppCompatActivity {
    public ArrayList<File> findSong(File file) {
       ArrayList<File> arrayList = new ArrayList<>();
       File[] files = file.listFiles();
+      if (files == null) {
+         return arrayList;
+      }
       for (File singleFile : files) {
          if (singleFile.isDirectory() && !singleFile.isHidden()) {
             arrayList.addAll(findSong(singleFile));
