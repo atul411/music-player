@@ -85,8 +85,6 @@ public class MainActivity extends AppCompatActivity {
                     .putExtra("song", mySongs)
                     .putExtra("songName", songName)
                     .putExtra("position", position));
-
-
          }
       });
    }
