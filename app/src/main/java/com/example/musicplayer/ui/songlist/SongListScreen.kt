@@ -47,7 +47,7 @@ fun SongListScreen(
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
-        if (granted) viewModel.processIntent(SongListIntent.LoadSongs)
+        viewModel.processIntent(SongListIntent.PermissionResult(granted))
     }
 
     LaunchedEffect(Unit) {
@@ -56,9 +56,18 @@ fun SongListScreen(
 
     Box(modifier = Modifier.fillMaxSize()) {
         when {
-            state.isLoading -> CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+            state.permissionGranted == null || state.isLoading ->
+                CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+            state.permissionGranted == false -> Text(
+                text = "Storage permission is required to show songs",
+                color = MaterialTheme.colorScheme.error,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .padding(horizontal = 32.dp)
+            )
             state.error != null -> Text(
-                text = state.error!!,
+                text = state.error.orEmpty(),
                 color = MaterialTheme.colorScheme.error,
                 modifier = Modifier.align(Alignment.Center)
             )

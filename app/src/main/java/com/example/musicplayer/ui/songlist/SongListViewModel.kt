@@ -16,6 +16,10 @@ class SongListViewModel(private val repository: SongRepository) : ViewModel() {
         when (intent) {
             is SongListIntent.LoadSongs -> loadSongs()
             is SongListIntent.SongClicked -> Unit
+            is SongListIntent.PermissionResult -> {
+                _state.value = _state.value.copy(permissionGranted = intent.granted)
+                if (intent.granted) loadSongs()
+            }
         }
     }
 
