@@ -11,6 +11,7 @@ import android.widget.AdapterView
 import android.widget.BaseAdapter
 import android.widget.ListView
 import android.widget.TextView
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import com.karumi.dexter.Dexter
@@ -50,6 +51,7 @@ class MainActivity : AppCompatActivity() {
                 }
 
                 override fun onPermissionDenied(response: PermissionDeniedResponse) {
+                    Toast.makeText(this@MainActivity, "Storage permission denied. Cannot load songs.", Toast.LENGTH_LONG).show()
                 }
 
                 override fun onPermissionRationaleShouldBeShown(
@@ -104,7 +106,7 @@ class MainActivity : AppCompatActivity() {
         override fun getItemId(position: Int): Long = position.toLong()
 
         override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
-            val view = layoutInflater.inflate(R.layout.list_items, null)
+            val view = convertView ?: layoutInflater.inflate(R.layout.list_items, parent, false)
             val textSong = view.findViewById<TextView>(R.id.textSong)
             textSong.isSelected = true
             textSong.text = items[position]
