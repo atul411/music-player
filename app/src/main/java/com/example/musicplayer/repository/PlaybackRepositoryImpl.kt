@@ -7,15 +7,19 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.io.File
 
 class PlaybackRepositoryImpl(private val context: Context) : PlaybackRepository {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    private val mutex = Mutex()
 
     private val _isPlaying = MutableStateFlow(false)
     override val isPlaying: StateFlow<Boolean> = _isPlaying
@@ -37,39 +41,55 @@ class PlaybackRepositoryImpl(private val context: Context) : PlaybackRepository 
 
     override fun play(songs: List<File>, position: Int) {
         if (songs.isEmpty()) return
-        this.songs = songs
-        this.currentPosition = position
-        userPaused = false
-        loadAndPlay()
+        scope.launch {
+            mutex.withLock {
+                this@PlaybackRepositoryImpl.songs = songs
+                this@PlaybackRepositoryImpl.currentPosition = position
+                userPaused = false
+                loadAndPlay()
+            }
+        }
     }
 
     override fun togglePlayPause() {
-        val player = mediaPlayer ?: return
-        if (player.isPlaying) {
-            player.pause()
-            userPaused = true
-            _isPlaying.value = false
-            progressJob?.cancel()
-        } else {
-            player.start()
-            userPaused = false
-            _isPlaying.value = true
-            startProgressTracking()
+        scope.launch {
+            mutex.withLock {
+                val player = mediaPlayer ?: return@withLock
+                if (player.isPlaying) {
+                    player.pause()
+                    userPaused = true
+                    _isPlaying.value = false
+                    progressJob?.cancel()
+                } else {
+                    player.start()
+                    userPaused = false
+                    _isPlaying.value = true
+                    startProgressTracking()
+                }
+            }
         }
     }
 
     override fun next() {
         if (songs.isEmpty()) return
-        currentPosition = (currentPosition + 1) % songs.size
-        userPaused = false
-        loadAndPlay()
+        scope.launch {
+            mutex.withLock {
+                currentPosition = (currentPosition + 1) % songs.size
+                userPaused = false
+                loadAndPlay()
+            }
+        }
     }
 
     override fun previous() {
         if (songs.isEmpty()) return
-        currentPosition = if (currentPosition - 1 < 0) songs.size - 1 else currentPosition - 1
-        userPaused = false
-        loadAndPlay()
+        scope.launch {
+            mutex.withLock {
+                currentPosition = if (currentPosition - 1 < 0) songs.size - 1 else currentPosition - 1
+                userPaused = false
+                loadAndPlay()
+            }
+        }
     }
 
     override fun fastForward() {
@@ -87,18 +107,26 @@ class PlaybackRepositoryImpl(private val context: Context) : PlaybackRepository 
     }
 
     override fun pauseForLifecycle() {
-        if (!userPaused) {
-            mediaPlayer?.pause()
-            _isPlaying.value = false
-            progressJob?.cancel()
+        scope.launch {
+            mutex.withLock {
+                if (!userPaused) {
+                    mediaPlayer?.pause()
+                    _isPlaying.value = false
+                    progressJob?.cancel()
+                }
+            }
         }
     }
 
     override fun resumeForLifecycle() {
-        if (!userPaused && mediaPlayer != null) {
-            mediaPlayer?.start()
-            _isPlaying.value = true
-            startProgressTracking()
+        scope.launch {
+            mutex.withLock {
+                if (!userPaused && mediaPlayer != null) {
+                    mediaPlayer?.start()
+                    _isPlaying.value = true
+                    startProgressTracking()
+                }
+            }
         }
     }
 
@@ -107,6 +135,7 @@ class PlaybackRepositoryImpl(private val context: Context) : PlaybackRepository 
         mediaPlayer?.stop()
         mediaPlayer?.release()
         mediaPlayer = null
+        scope.cancel()
     }
 
     private fun loadAndPlay() {
@@ -115,12 +144,17 @@ class PlaybackRepositoryImpl(private val context: Context) : PlaybackRepository 
         mediaPlayer?.release()
         val file = songs[currentPosition]
         _currentSongName.value = file.name.replace(".mp3", "").replace(".wav", "")
-        mediaPlayer = MediaPlayer.create(context, Uri.parse(file.toString()))
-        mediaPlayer?.start()
+        val player = MediaPlayer.create(context, Uri.parse(file.toString()))
+        if (player == null) {
+            _isPlaying.value = false
+            return
+        }
+        mediaPlayer = player
+        player.start()
         _isPlaying.value = true
-        _duration.value = mediaPlayer?.duration ?: 0
+        _duration.value = player.duration
         startProgressTracking()
-        mediaPlayer?.setOnCompletionListener {
+        player.setOnCompletionListener {
             _isPlaying.value = false
             progressJob?.cancel()
         }
@@ -130,7 +164,9 @@ class PlaybackRepositoryImpl(private val context: Context) : PlaybackRepository 
         progressJob?.cancel()
         progressJob = scope.launch {
             while (true) {
-                _progress.value = mediaPlayer?.currentPosition ?: 0
+                val player = mediaPlayer
+                if (player == null || !player.isPlaying) break
+                _progress.value = player.currentPosition
                 delay(500)
             }
         }
