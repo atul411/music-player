@@ -1,16 +1,22 @@
 package com.example.musicplayer
 
-import android.media.MediaPlayer
-import android.net.Uri
 import android.os.Bundle
 import android.widget.Button
 import android.widget.ImageView
 import android.widget.SeekBar
 import android.widget.TextView
+import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
+import com.example.musicplayer.viewmodel.PlayerViewModel
+import kotlinx.coroutines.launch
 import java.io.File
 
 class PlayerActivity : AppCompatActivity() {
+
+    private val viewModel: PlayerViewModel by viewModels()
 
     private lateinit var btnPlay: Button
     private lateinit var btnNext: Button
@@ -20,9 +26,6 @@ class PlayerActivity : AppCompatActivity() {
     private lateinit var songNameText: TextView
     private lateinit var seekBar: SeekBar
     private lateinit var imageView: ImageView
-    private lateinit var mediaPlayer: MediaPlayer
-    private lateinit var mySongs: MutableList<File>
-    private var position: Int = 0
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -31,67 +34,37 @@ class PlayerActivity : AppCompatActivity() {
         btnPlay = findViewById(R.id.btnPlay)
         btnNext = findViewById(R.id.btnNext)
         btnPrevious = findViewById(R.id.btnPrevious)
-        btnFastBackward = findViewById(R.id.btnFastBackward)
         btnFastForward = findViewById(R.id.btnFastForward)
+        btnFastBackward = findViewById(R.id.btnFastBackward)
         songNameText = findViewById(R.id.txtSong)
         seekBar = findViewById(R.id.seekBar)
         imageView = findViewById(R.id.imgView)
 
-        mySongs = (intent.getSerializableExtra("song") as? ArrayList<File>)?.toMutableList() ?: mutableListOf()
-        position = intent.getIntExtra("position", 0)
+        val songs = (intent.getSerializableExtra("song") as? ArrayList<File>) ?: return
+        val position = intent.getIntExtra("position", 0)
 
         songNameText.isSelected = true
-        playSong(position)
+        viewModel.playSong(applicationContext, songs, position)
 
-        btnPlay.setOnClickListener {
-            if (mediaPlayer.isPlaying) {
-                btnPlay.setBackgroundResource(R.drawable.ic_play)
-                mediaPlayer.pause()
-            } else {
-                btnPlay.setBackgroundResource(R.drawable.ic_pause)
-                mediaPlayer.start()
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                launch {
+                    viewModel.currentSongName.collect { name ->
+                        songNameText.text = name
+                    }
+                }
+                launch {
+                    viewModel.isPlaying.collect { playing ->
+                        btnPlay.setBackgroundResource(
+                            if (playing) R.drawable.ic_pause else R.drawable.ic_play
+                        )
+                    }
+                }
             }
         }
 
-        btnNext.setOnClickListener {
-            position = (position + 1) % mySongs.size
-            playSong(position)
-        }
-
-        btnPrevious.setOnClickListener {
-            position = if (position - 1 < 0) mySongs.size - 1 else (position - 1) % mySongs.size
-            playSong(position)
-        }
-    }
-
-    private fun playSong(pos: Int) {
-        if (::mediaPlayer.isInitialized) {
-            mediaPlayer.stop()
-            mediaPlayer.release()
-        }
-        val uri = Uri.parse(mySongs[pos].toString())
-        songNameText.text = mySongs[pos].name
-        mediaPlayer = MediaPlayer.create(applicationContext, uri)
-        mediaPlayer.start()
-        mediaPlayer.setOnCompletionListener { mp ->
-            mp.stop()
-            mp.release()
-        }
-    }
-
-    override fun onPause() {
-        super.onPause()
-        mediaPlayer.pause()
-    }
-
-    override fun onResume() {
-        super.onResume()
-        mediaPlayer.start()
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        mediaPlayer.stop()
-        mediaPlayer.release()
+        btnPlay.setOnClickListener { viewModel.togglePlayPause() }
+        btnNext.setOnClickListener { viewModel.next(applicationContext) }
+        btnPrevious.setOnClickListener { viewModel.previous(applicationContext) }
     }
 }
