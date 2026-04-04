@@ -2,6 +2,7 @@ package com.example.musicplayer
 
 import android.Manifest
 import android.content.Intent
+import android.os.Build
 import android.os.Bundle
 import android.provider.MediaStore
 import android.view.View
@@ -36,8 +37,13 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun runTimePermission() {
+        val permission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
+            Manifest.permission.READ_MEDIA_AUDIO
+        else
+            Manifest.permission.READ_EXTERNAL_STORAGE
+
         Dexter.withContext(this)
-            .withPermission(Manifest.permission.READ_EXTERNAL_STORAGE)
+            .withPermission(permission)
             .withListener(object : PermissionListener {
                 override fun onPermissionGranted(response: PermissionGrantedResponse) {
                     displaySong()
